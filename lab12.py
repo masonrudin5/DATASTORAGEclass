@@ -94,7 +94,7 @@ for tile in page.select(TILE):
     if not name:
         continue
     rows.append({
-        "MName":         name[:40].strip(), # MName is VARCHAR(40), so cut longer titles to 40 characters
+        "MName":         name[:100].strip(), # MName is VARCHAR(100), so cut anything longer to 100 characters
         "CriticScore":   to_score(get_text(tile, CRITIC)),
         "AudienceScore": to_score(get_text(tile, AUDIENCE)),
         "ReleaseDate":   to_date(get_text(tile, DATE)),
