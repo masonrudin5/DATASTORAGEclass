@@ -1,7 +1,7 @@
 ## MASON RUDIN m285640
 ## Lab 12 - scrape Rotten Tomatoes "Movies in Theaters" (newest first) with Selenium + BeautifulSoup,
 ## put movie name / critic score / audience score / release date in a DataFrame,
-## then INSERT every row into the Movies table from lab12.sql
+## then INSERT every row into the RottenMovies table from lab12.sql
 
 import re
 import time
@@ -9,6 +9,8 @@ from datetime import datetime
 from urllib import robotparser
 
 import pandas as pd
+import requests
+import urllib3
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
@@ -17,6 +19,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from mydb import db
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)   # hide the verify=False warning
 
 URL = "https://www.rottentomatoes.com/browse/movies_in_theaters/sort:newest"
 USER_AGENT = "SD321 student scraper"
@@ -32,9 +36,14 @@ LOAD_MORE = "button[data-qa='dlp-load-more-button']"
 
 
 print(1)
-## Check robots.txt first to make sure we are allowed to scrape this page
-robots = robotparser.RobotFileParser("https://www.rottentomatoes.com/robots.txt")
-robots.read()
+## Check robots.txt first to make sure we are allowed to scrape this page.
+## robots.read() can't verify SSL certificates on the school network, so download robots.txt
+## with requests (verify=False, same as in class) and hand the lines to robotparser.
+resp = requests.get("https://www.rottentomatoes.com/robots.txt",
+                    headers={"User-Agent": USER_AGENT}, timeout=10, verify=False)
+resp.raise_for_status()
+robots = robotparser.RobotFileParser()
+robots.parse(resp.text.splitlines())
 if not robots.can_fetch(USER_AGENT, URL):
     raise SystemExit("robots.txt does not allow scraping " + URL)
 print("robots.txt allows scraping", URL)
@@ -111,10 +120,10 @@ print(df.shape)
 
 
 print(5)
-## INSERT each row of the DataFrame into the Movies table.
+## INSERT each row of the DataFrame into the RottenMovies table.
 ## ON DUPLICATE KEY UPDATE means running the lab again updates the scores
 ## instead of erroring because the movie name (primary key) is already in the table.
-query = """INSERT INTO Movies (MName, CriticScore, AudienceScore, ReleaseDate)
+query = """INSERT INTO RottenMovies (MName, CriticScore, AudienceScore, ReleaseDate)
            VALUES (%s, %s, %s, %s)
            ON DUPLICATE KEY UPDATE CriticScore = VALUES(CriticScore),
                                    AudienceScore = VALUES(AudienceScore),
@@ -127,12 +136,12 @@ for row in df.itertuples(index=False):
         print("Could not insert", row.MName, "->", error)
     else:
         saved += 1
-print(saved, "of", len(df), "movies saved to the Movies table")
+print(saved, "of", len(df), "movies saved to the RottenMovies table")
 
 
 print(6)
 ## Read the table back to check what got stored
-movies, error = db.querydf("SELECT * FROM Movies ORDER BY ReleaseDate DESC, MName")
+movies, error = db.querydf("SELECT * FROM RottenMovies ORDER BY ReleaseDate DESC, MName")
 if error:
     print(error)
 else:
