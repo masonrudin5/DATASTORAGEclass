@@ -8,6 +8,8 @@ import time
 from datetime import datetime
 from urllib import robotparser
 
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import urllib3
@@ -146,5 +148,44 @@ if error:
     print(error)
 else:
     print(movies.to_string())
+
+
+print(7)
+## SELECT the average audience score for each release date in the past year and graph it.
+## AVG skips NULLs, and movies with no audience score yet are left out with IS NOT NULL.
+## Release dates after today (movies that haven't opened yet) are left out by "AND CURDATE()".
+graph_query = """SELECT ReleaseDate, ROUND(AVG(AudienceScore), 1) AS AvgAudienceScore
+                 FROM RottenMovies
+                 WHERE AudienceScore IS NOT NULL
+                   AND ReleaseDate BETWEEN DATE_SUB(CURDATE(), INTERVAL 1 YEAR) AND CURDATE()
+                 GROUP BY ReleaseDate
+                 ORDER BY ReleaseDate"""
+
+scores, error = db.querydf(graph_query)
+if error:
+    print(error)
+elif scores.empty:
+    print("No movies with an audience score were released in the past year")
+else:
+    print(scores.to_string())
+    scores["ReleaseDate"] = pd.to_datetime(scores["ReleaseDate"])   # so matplotlib spaces the dates correctly
+
+    fig, ax = plt.subplots(figsize=(11, 5))
+    ax.plot(scores["ReleaseDate"], scores["AvgAudienceScore"],
+            color="#2a78d6", linewidth=2, marker="o", markersize=8,
+            markeredgecolor="white", markeredgewidth=2,
+            clip_on=False)                                # so a dot at 100% isn't cut off by the top edge
+    ax.set_title("Average audience score by release date (past year)", loc="left")
+    ax.set_xlabel("Release date")
+    ax.set_ylabel("Average audience score (%)")
+    ax.set_ylim(0, 100)                                   # scores are percents, so show the full 0-100 range
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d\n%Y"))
+    ax.grid(axis="y", color="#e5e4e0", linewidth=1)       # light horizontal lines to read the scores
+    ax.set_axisbelow(True)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    fig.tight_layout()
+    fig.savefig("lab12_graph.png", dpi=150)               # saves a copy next to lab12.py
+    plt.show()                                            # opens the graph window (close it to finish)
 
 db.close()
