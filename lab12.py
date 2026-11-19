@@ -9,6 +9,8 @@ from datetime import datetime
 from urllib import robotparser
 
 import pandas as pd
+import requests
+import urllib3
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
@@ -17,6 +19,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from mydb import db
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)   # hide the verify=False warning
 
 URL = "https://www.rottentomatoes.com/browse/movies_in_theaters/sort:newest"
 USER_AGENT = "SD321 student scraper"
@@ -32,9 +36,14 @@ LOAD_MORE = "button[data-qa='dlp-load-more-button']"
 
 
 print(1)
-## Check robots.txt first to make sure we are allowed to scrape this page
-robots = robotparser.RobotFileParser("https://www.rottentomatoes.com/robots.txt")
-robots.read()
+## Check robots.txt first to make sure we are allowed to scrape this page.
+## robots.read() can't verify SSL certificates on the school network, so download robots.txt
+## with requests (verify=False, same as in class) and hand the lines to robotparser.
+resp = requests.get("https://www.rottentomatoes.com/robots.txt",
+                    headers={"User-Agent": USER_AGENT}, timeout=10, verify=False)
+resp.raise_for_status()
+robots = robotparser.RobotFileParser()
+robots.parse(resp.text.splitlines())
 if not robots.can_fetch(USER_AGENT, URL):
     raise SystemExit("robots.txt does not allow scraping " + URL)
 print("robots.txt allows scraping", URL)
